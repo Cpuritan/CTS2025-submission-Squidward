@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>以航班为中心的贪心策略-响应式模拟</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Helvetica Neue', 'Arial', 'sans-serif';
+            overscroll-behavior: none;
+        }
+        .pilot-circle {
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .flight-box {
+            position: absolute;
+            border-radius: 4px;
+            color: white;
+            font-size: 11px;
+            font-weight: 500;
+            padding: 2px 5px;
+            cursor: pointer;
+            transition: all 0.5s ease-in-out, box-shadow 0.3s ease;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            overflow: hidden;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .flight-box.highlighted {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
+            z-index: 100;
+        }
+        .log-panel {
+            transition: transform 0.3s ease-in-out;
+        }
+        /* Custom scrollbar for better look */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #a8a8a8;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #7a7a7a;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex flex-col h-screen overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white shadow-md p-3 z-30 flex-shrink-0">
+        <div class="flex justify-between items-center">
+            <h1 class="text-lg md:text-xl font-bold text-gray-800 truncate">贪心策略模拟</h1>
+            <div class="flex items-center space-x-2 md:space-x-3">
+                <button id="start-btn" class="px-3 py-2 md:px-4 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 transition-all flex items-center space-x-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
+                    <span>开始</span>
+                </button>
+                <button id="reset-btn" class="px-3 py-2 md:px-4 bg-gray-500 text-white font-semibold rounded-lg shadow-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-75 transition-all flex items-center space-x-2">
+                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.885-.666A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566z" clip-rule="evenodd" /></svg>
+                    <span>重置</span>
+                </button>
+                <button id="log-toggle-btn" class="lg:hidden p-2 rounded-md hover:bg-gray-100 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <div class="flex-grow relative overflow-hidden flex">
+        <!-- Visualization Area -->
+        <main id="main-content-area" class="flex-grow flex flex-col bg-gray-50 p-2 md:p-4 overflow-hidden">
+            <div id="timeline-container" class="flex-shrink-0 bg-white p-2 rounded-lg shadow">
+                <!-- Timeline will be injected here -->
+            </div>
+            <div class="flex-grow relative mt-4 overflow-auto p-2 custom-scrollbar" id="main-viz-area">
+                <div id="unassigned-pool-container" class="relative w-full h-auto mb-4">
+                     <div class="flex space-x-4">
+                        <div id="mini-pilots-display" class="flex-shrink-0 flex flex-col space-y-2 pt-8">
+                            <!-- Mini pilot circles will be injected here -->
+                        </div>
+                        <div class="flex-grow min-w-0">
+                             <h3 class="text-base md:text-lg font-semibold mb-2 text-gray-600">未分配航班池</h3>
+                             <div id="flights-pool" class="relative w-full h-full border-t-2 border-gray-200 pt-2">
+                                <!-- Unassigned flights will be injected here -->
+                            </div>
+                        </div>
+                     </div>
+                </div>
+                <hr class="my-4 border-dashed">
+                <div id="assigned-area-container" class="relative w-full h-auto">
+                    <h3 class="text-base md:text-lg font-semibold mb-2 text-gray-600">飞行员时间线</h3>
+                    <div id="assigned-area" class="relative w-full h-full pt-2 space-y-2">
+                        <!-- Pilot timelines will be created here -->
+                    </div>
+                </div>
+                 <svg id="lines-svg" class="absolute top-0 left-0 w-full h-full pointer-events-none z-20"></svg>
+            </div>
+        </main>
+        
+        <!-- Log Panel (Mobile) -->
+        <aside id="log-panel" class="log-panel custom-scrollbar fixed top-0 right-0 h-full w-72 md:w-80 bg-white p-4 overflow-y-auto shadow-xl z-40 transform translate-x-full lg:static lg:w-80 lg:transform-none lg:shadow-lg lg:flex-shrink-0">
+            <h2 class="text-lg font-semibold mb-4">模拟日志</h2>
+            <div id="simulation-log" class="bg-gray-100 p-3 rounded-md text-sm space-y-2 h-full">
+                <!-- Log messages will be injected here -->
+            </div>
+        </aside>
+        
+        <!-- Overlay for mobile panels -->
+        <div id="overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden lg:hidden"></div>
+    </div>
+
+<script>
+const timelineContainerEl = document.getElementById('timeline-container');
+const flightsPoolEl = document.getElementById('flights-pool');
+const assignedAreaEl = document.getElementById('assigned-area');
+const miniPilotsDisplayEl = document.getElementById('mini-pilots-display');
+const linesSvgEl = document.getElementById('lines-svg');
+const startBtn = document.getElementById('start-btn');
+const resetBtn = document.getElementById('reset-btn');
+const simulationLogEl = document.getElementById('simulation-log');
+const logToggleBtn = document.getElementById('log-toggle-btn');
+const logPanel = document.getElementById('log-panel');
+const overlay = document.getElementById('overlay');
+const mainVizArea = document.getElementById('main-viz-area');
+
+const NUM_PILOTS = 8;
+const NUM_FLIGHTS = 50;
+const DAYS = 7;
+const HOURS_PER_DAY = 24;
+const TOTAL_HOURS = DAYS * HOURS_PER_DAY;
+const MIN_REST_HOURS = 12;
+
+let pilotsData = [];
+let flightsData = [];
+let qualificationsData = {};
+let simulationInterval = null;
+let currentFlightIndex = 0;
+let isSimulating = false;
+
+const QUALIFICATIONS = ['A320', 'A330', 'B737', 'B787'];
+const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6366F1', '#14B8A6'];
+
+// --- DATA GENERATION ---
+function generateData() {
+    pilotsData = [];
+    for (let i = 0; i < NUM_PILOTS; i++) {
+        const pilot = { id: `C${i + 1}`, name: `飞行员 ${String.fromCharCode(65 + i)}`, color: COLORS[i % COLORS.length] };
+        pilotsData.push(pilot);
+        qualificationsData[pilot.id] = [...new Set(Array.from({ length: Math.ceil(Math.random() * 2) }, () => QUALIFICATIONS[Math.floor(Math.random() * QUALIFICATIONS.length)]))];
+    }
+
+    flightsData = [];
+    for (let i = 0; i < NUM_FLIGHTS; i++) {
+        const startHour = Math.random() * (TOTAL_HOURS - 10);
+        const duration = 2 + Math.random() * 4;
+        flightsData.push({
+            id: `Flt ${101 + i}`,
+            start: startHour,
+            end: startHour + duration,
+            requiredQual: QUALIFICATIONS[Math.floor(Math.random() * QUALIFICATIONS.length)],
+            assignedTo: null,
+            element: null
+        });
+    }
+    flightsData.sort((a, b) => a.start - b.start);
+}
+
+// --- UI DRAWING ---
+function drawPilotTimelines() {
+    assignedAreaEl.innerHTML = '';
+    pilotsData.forEach(pilot => {
+        const container = document.createElement('div');
+        container.className = 'flex items-center space-x-2';
+        container.id = `pilot-container-${pilot.id}`;
+        
+        const pilotInfo = document.createElement('div');
+        pilotInfo.className = 'w-16 flex-shrink-0 flex items-center justify-center';
+        
+        const pilotCircle = document.createElement('div');
+        pilotCircle.id = `pilot-circle-${pilot.id}`;
+        pilotCircle.className = 'pilot-circle w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xs';
+        pilotCircle.style.backgroundColor = pilot.color;
+        pilotCircle.textContent = pilot.id;
+
+        pilotInfo.appendChild(pilotCircle);
+        
+        const timelineEl = document.createElement('div');
+        timelineEl.id = `timeline-${pilot.id}`;
+        timelineEl.className = 'relative flex-grow h-8 bg-gray-200 rounded';
+        
+        container.appendChild(pilotInfo);
+        container.appendChild(timelineEl);
+        assignedAreaEl.appendChild(container);
+    });
+}
+
+function drawMiniPilots() {
+    miniPilotsDisplayEl.innerHTML = '';
+    pilotsData.forEach(pilot => {
+        const miniCircle = document.createElement('div');
+        miniCircle.id = `mini-pilot-circle-${pilot.id}`;
+        miniCircle.className = 'w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs pilot-circle';
+        miniCircle.style.backgroundColor = pilot.color;
+        miniCircle.textContent = pilot.id;
+        miniPilotsDisplayEl.appendChild(miniCircle);
+    });
+}
+
+function drawTimeline() {
+    timelineContainerEl.innerHTML = '';
+    const timeline = document.createElement('div');
+    timeline.className = 'relative flex ml-20'; // Adjusted offset for new simplified pilot info
+    for (let i = 0; i < DAYS; i++) {
+        const dayLabel = document.createElement('div');
+        dayLabel.className = 'flex-1 text-xs text-gray-500 text-center py-1 border-r border-gray-200 last:border-r-0';
+        dayLabel.textContent = `第 ${i + 1} 天`;
+        timeline.appendChild(dayLabel);
+    }
+    timelineContainerEl.appendChild(timeline);
+}
+
+function drawFlights() {
+    flightsPoolEl.innerHTML = '';
+    const rows = [];
+    flightsData.forEach(flight => {
+        let placed = false;
+        const flightLeft = (flight.start / TOTAL_HOURS) * 100;
+        const flightWidth = ((flight.end - flight.start) / TOTAL_HOURS) * 100;
+
+        for (let i = 0; i < rows.length; i++) {
+            if (flight.start >= rows[i]) {
+                flight.row = i;
+                rows[i] = flight.end + 1; // Add a small buffer
+                placed = true;
+                break;
+            }
+        }
+        if (!placed) {
+            flight.row = rows.length;
+            rows.push(flight.end + 1);
+        }
+
+        const flightEl = document.createElement('div');
+        flightEl.id = `flight-${flight.id.replace(' ', '-')}`;
+        flightEl.className = 'flight-box bg-gray-400';
+        flightEl.style.left = `${flightLeft}%`;
+        flightEl.style.width = `${flightWidth}%`;
+        flightEl.style.top = `${flight.row * 32}px`;
+        flightEl.textContent = `${flight.id} (${flight.requiredQual})`;
+        flight.element = flightEl;
+        flightsPoolEl.appendChild(flightEl);
+    });
+    flightsPoolEl.style.height = `${rows.length * 32}px`;
+}
+
+function drawLine(fromEl, toEl, color = 'gray', dashed = false) {
+    const vizRect = mainVizArea.getBoundingClientRect();
+    const fromRect = fromEl.getBoundingClientRect();
+    const toRect = toEl.getBoundingClientRect();
+    
+    const x1 = fromRect.left;
+    const y1 = fromRect.top + fromRect.height / 2;
+    const x2 = toRect.right;
+    const y2 = toRect.top + toRect.height / 2;
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1 - vizRect.left + mainVizArea.scrollLeft);
+    line.setAttribute('y1', y1 - vizRect.top + mainVizArea.scrollTop);
+    line.setAttribute('x2', x2 - vizRect.left + mainVizArea.scrollLeft);
+    line.setAttribute('y2', y2 - vizRect.top + mainVizArea.scrollTop);
+    line.setAttribute('stroke', color);
+    line.setAttribute('stroke-width', '2');
+    if (dashed) line.setAttribute('stroke-dasharray', '5,5');
+    
+    linesSvgEl.appendChild(line);
+}
+
+function clearLines() {
+    linesSvgEl.innerHTML = '';
+}
+
+function addLog(message, type = 'info') {
+    const logEntry = document.createElement('div');
+    const colors = { info: 'text-gray-700', success: 'text-green-600 font-semibold', warning: 'text-yellow-600', error: 'text-red-600' };
+    logEntry.className = `p-1.5 rounded ${colors[type]}`;
+    logEntry.innerHTML = `<span class="font-mono text-xs">${new Date().toLocaleTimeString()}</span> &rarr; ${message}`;
+    simulationLogEl.insertBefore(logEntry, simulationLogEl.firstChild);
+}
+
+// --- SIMULATION LOGIC ---
+function startSimulation() {
+    if (isSimulating) return;
+    resetSimulation(false);
+    addLog('模拟开始：按航班起飞时间顺序处理。');
+    startBtn.disabled = true;
+    isSimulating = true;
+    simulationInterval = setInterval(simulationStep, 2500);
+}
+
+function simulationStep() {
+    if (currentFlightIndex >= flightsData.length) {
+        clearInterval(simulationInterval);
+        addLog('所有航班处理完毕，模拟结束！', 'success');
+        startBtn.disabled = false;
+        isSimulating = false;
+        return;
+    }
+
+    clearLines();
+    document.querySelectorAll('.flight-box.highlighted').forEach(el => el.classList.remove('highlighted'));
+
+    const currentFlight = flightsData[currentFlightIndex];
+    if (currentFlight.assignedTo) {
+        currentFlightIndex++;
+        if(isSimulating) simulationStep();
+        return;
+    }
+
+    addLog(`正在处理航班 <strong>${currentFlight.id}</strong>...`);
+    currentFlight.element.classList.add('highlighted');
+    mainVizArea.scrollTop = Math.max(0, currentFlight.element.offsetTop - 50);
+
+    const qualifiedPilots = pilotsData.filter(p => qualificationsData[p.id].includes(currentFlight.requiredQual));
+    let candidates = [];
+    addLog(`资质匹配: ${qualifiedPilots.length > 0 ? qualifiedPilots.map(p => p.name).join(', ') : '无'}`, 'info');
+
+    qualifiedPilots.forEach(pilot => {
+        const miniPilotCircleEl = document.getElementById(`mini-pilot-circle-${pilot.id}`);
+        const lastAssignment = flightsData.slice().reverse().find(f => f.assignedTo === pilot.id);
+        const availableTime = lastAssignment ? lastAssignment.end + MIN_REST_HOURS : 0;
+        const isAvailable = currentFlight.start >= availableTime;
+        candidates.push({ pilot, isAvailable, cost: Math.random() * 100 });
+        drawLine(currentFlight.element, miniPilotCircleEl, isAvailable ? 'orange' : '#a0aec0', !isAvailable);
+    });
+
+    setTimeout(() => {
+        if (!isSimulating) return;
+        const availableCandidates = candidates.filter(c => c.isAvailable);
+        if (availableCandidates.length === 0) {
+            addLog(`航班 ${currentFlight.id} 无可用飞行员。`, 'error');
+            currentFlightIndex++;
+            return;
+        }
+        availableCandidates.sort((a, b) => a.cost - b.cost);
+        const bestCandidate = availableCandidates[0];
+        addLog(`评估完成，最优选择: <strong>${bestCandidate.pilot.name}</strong>`, 'success');
+
+        clearLines();
+        candidates.forEach(c => {
+            const miniPilotCircleEl = document.getElementById(`mini-pilot-circle-${c.pilot.id}`);
+            drawLine(currentFlight.element, miniPilotCircleEl, c.pilot.id === bestCandidate.pilot.id ? 'limegreen' : (c.isAvailable ? '#cbd5e0' : '#e2e8f0'), !c.isAvailable);
+        });
+
+        setTimeout(() => {
+            if (!isSimulating) return;
+            assignFlightToPilot(currentFlight, bestCandidate.pilot);
+            currentFlightIndex++;
+        }, 800);
+    }, 1000);
+}
+
+function assignFlightToPilot(flight, pilot) {
+    flight.assignedTo = pilot.id;
+    addLog(`已分配 <strong>${flight.id}</strong> 给 <strong>${pilot.name}</strong>`, 'success');
+    
+    const pilotTimelineEl = document.getElementById(`timeline-${pilot.id}`);
+    const flightEl = flight.element;
+    
+    flightEl.style.backgroundColor = pilot.color;
+    flightEl.classList.remove('highlighted');
+    
+    const newParentRect = pilotTimelineEl.getBoundingClientRect();
+    const vizRect = mainVizArea.getBoundingClientRect();
+    const newTop = newParentRect.top - vizRect.top + mainVizArea.scrollTop;
+    
+    flightEl.style.top = `${newTop}px`;
+    flightEl.style.height = `${newParentRect.height}px`;
+    
+    mainVizArea.appendChild(flightEl);
+    
+    setTimeout(() => {
+        pilotTimelineEl.appendChild(flightEl);
+        flightEl.style.top = '0px';
+    }, 500); 
+}
+
+function resetSimulation(fullReset = true) {
+    clearInterval(simulationInterval);
+    isSimulating = false;
+    currentFlightIndex = 0;
+    
+    const fragment = document.createDocumentFragment();
+    flightsData.forEach(f => {
+      if (f.element && f.element.parentElement) {
+        f.element.parentElement.removeChild(f.element);
+      }
+      if (f.element) {
+        fragment.appendChild(f.element);
+      }
+    });
+    flightsPoolEl.appendChild(fragment);
+
+    clearLines();
+    if(fullReset) simulationLogEl.innerHTML = '';
+    
+    flightsData.forEach(flight => { flight.assignedTo = null; flight.row = undefined; });
+    
+    drawFlights();
+    drawPilotTimelines();
+    drawMiniPilots();
+    startBtn.disabled = false;
+    if(fullReset) addLog('模拟已重置。');
+}
+
+// --- INITIALIZATION & EVENT LISTENERS ---
+function init() {
+    generateData();
+    drawTimeline();
+    drawFlights();
+    drawPilotTimelines();
+    drawMiniPilots();
+    addLog('欢迎来到贪心策略模拟器！');
+    
+    startBtn.addEventListener('click', startSimulation);
+    resetBtn.addEventListener('click', () => resetSimulation(true));
+
+    const togglePanel = (panel) => {
+        const transformClass = 'translate-x-full';
+        
+        if (panel.classList.contains('transform-none')) {
+            panel.classList.remove('transform-none');
+            panel.classList.add(transformClass);
+            overlay.classList.add('hidden');
+        } else {
+            panel.classList.remove(transformClass);
+            panel.classList.add('transform-none');
+            overlay.classList.remove('hidden');
+        }
+    };
+
+    logToggleBtn.addEventListener('click', () => togglePanel(logPanel));
+    overlay.addEventListener('click', () => {
+        if (logPanel.classList.contains('transform-none')) togglePanel(logPanel);
+    });
+
+    window.onresize = () => {
+        if (!isSimulating) {
+            resetSimulation(true);
+        }
+    };
+}
+
+window.onload = init;
+
+</script>
+</body>
+</html>
